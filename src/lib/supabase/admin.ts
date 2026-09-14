@@ -31,11 +31,16 @@ type PrivilegedPerfil = "super_admin" | "admin_acadjuris";
  * uma decisão deliberada (revisão de código), nunca implícita.
  *
  * NUNCA adicione aqui uma operação de aprovação de conteúdo jurídico da
- * metodologia -- essa competência exige o grant individual
- * `pode_aprovar_conteudo_juridico` (Gestao-da-Metodologia-e-Versionamento-
- * v2.md, seção 5.2), nunca decorre de `admin_acadjuris` ou `super_admin`.
- * O guard `assertOperationIsNotLegalApproval` abaixo é a segunda camada de
- * defesa contra isso, independente de revisão de código.
+ * metodologia -- essa competência tem mecanismo PRÓPRIO, estruturalmente
+ * separado deste módulo: `authorizeLegalContentApproval`
+ * (src/lib/supabase/legal-approval.ts), que verifica exclusivamente a
+ * tabela `legal_content_approval_grant` (migration 0004) e nunca consulta
+ * `admin_acadjuris_grant`/`super_admin_grant`. A ausência estrutural de
+ * qualquer operação desse tipo nesta lista é a PRIMEIRA camada de defesa
+ * (verificada em `tests/unit/supabase-admin.test.ts` por enumeração de
+ * `PRIVILEGED_OPERATIONS`, não apenas por busca de palavra-chave); o guard
+ * `assertOperationIsNotLegalApproval` abaixo é uma SEGUNDA camada,
+ * best-effort, para o caso de alguém tentar contornar a primeira.
  */
 const OPERATION_REQUIRED_PERFIS = {
   revoke_access_cascade: ["super_admin", "admin_acadjuris"],
@@ -45,15 +50,21 @@ const OPERATION_REQUIRED_PERFIS = {
 
 export type PrivilegedOperation = keyof typeof OPERATION_REQUIRED_PERFIS;
 
+/** Lista de operações privilegiadas, exposta apenas para verificação estrutural em teste (ver nota acima). */
+export const PRIVILEGED_OPERATIONS: readonly PrivilegedOperation[] = Object.keys(
+  OPERATION_REQUIRED_PERFIS,
+) as PrivilegedOperation[];
+
 const LEGAL_APPROVAL_KEYWORDS = ["legal", "juridic", "aprovacao_conteudo", "approval_conteudo"];
 
+/** Segunda camada de defesa (best-effort) -- a primeira é a ausência estrutural na lista fechada acima. */
 function assertOperationIsNotLegalApproval(operation: string) {
   const normalized = operation.toLowerCase();
   if (LEGAL_APPROVAL_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
     throw new Error(
       `Operação "${operation}" nunca pode ser autorizada via cliente administrativo -- ` +
-        "aprovação de conteúdo jurídico exige o grant individual pode_aprovar_conteudo_juridico, " +
-        "nunca decorre de admin_acadjuris ou super_admin.",
+        "aprovação de conteúdo jurídico usa authorizeLegalContentApproval " +
+        "(legal_content_approval_grant), nunca decorre de admin_acadjuris ou super_admin.",
     );
   }
 }

@@ -42,7 +42,7 @@ cp .env.example .env.local
 npx supabase login                          # autoriza o CLI (abre o navegador)
 npx supabase link --project-ref <ref>       # vincula ao projeto Supabase de desenvolvimento
 npx supabase db push                        # aplica supabase/migrations/*.sql
-node supabase/seed/seed-fictitious.mjs      # cria 2 organizações fictícias + 5 perfis de teste
+node --env-file=.env.local supabase/seed/seed-fictitious.mjs   # cria 2 organizações fictícias + 9 usuários de teste
 npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts
 ```
 
@@ -66,10 +66,12 @@ npm run typecheck    # tsc --noEmit
 npm run test         # Vitest (testes unitários -- não exigem Supabase)
 npm run build        # build de produção do Next.js
 npm run check         # roda os 4 acima em sequência
+npm run test:integration   # testes reais de RLS/auth/MFA/auditoria (exige projeto Supabase vinculado + seed)
 ```
 
-Os testes de integração de RLS (`tests/integration/`) **exigem** uma
-instância Supabase local em execução — não rodam com `npm test`. Ver
+Os testes de integração (`tests/integration/`) **exigem** um projeto
+Supabase de desenvolvimento real, vinculado e semeado — não rodam com
+`npm test`/`npm run check`. Ver
 `tests/integration/README.md`.
 
 ## Estrutura do projeto

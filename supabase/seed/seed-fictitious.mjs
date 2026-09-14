@@ -125,6 +125,18 @@ async function main() {
   );
   await supabase.from("admin_acadjuris_grant").insert({ user_id: adminId });
 
+  // Usuario com habilitacao INDIVIDUAL de aprovacao juridica (Gestao-da-
+  // Metodologia-e-Versionamento-v2.md, secao 5.2) -- deliberadamente SEM
+  // nenhum perfil administrativo, para provar que a competencia nao
+  // decorre de admin_acadjuris/super_admin.
+  const advogadoId = await criarUsuario(
+    "advogado.habilitado@teste.acadjuris.local",
+    "Advogado Habilitado (teste)",
+  );
+  await supabase
+    .from("legal_content_approval_grant")
+    .insert({ user_id: advogadoId, granted_by: adminId });
+
   console.log("Seed concluído.");
   console.log(`Organização A: ${orgA.org.id} (projeto ${orgA.project.id})`);
   console.log(`Organização B: ${orgB.org.id} (projeto ${orgB.project.id})`);

@@ -29,7 +29,7 @@ vi.mock("@/lib/audit", () => ({
   recordAuditEvent: recordAuditEventMock,
 }));
 
-const { authorizeAdminOperation, AdminAuthorizationError } = await import(
+const { authorizeAdminOperation, AdminAuthorizationError, PRIVILEGED_OPERATIONS } = await import(
   "@/lib/supabase/admin"
 );
 
@@ -211,5 +211,22 @@ describe("authorizeAdminOperation", () => {
     await expect(
       authorizeAdminOperation("manage_users_and_organizations"),
     ).rejects.toThrow(/não possui perfil autorizado/);
+  });
+
+  it("PRIVILEGED_OPERATIONS nunca contém, por construção, uma operação de aprovação jurídica", () => {
+    // Prova estrutural (não apenas busca de palavra-chave em tempo de
+    // execução): enumera a lista fechada real e confirma que nenhuma
+    // entrada jamais cadastrada nela se relaciona a aprovação de conteúdo
+    // jurídico -- essa competência só existe via
+    // authorizeLegalContentApproval (tests/unit/legal-approval.test.ts),
+    // um módulo inteiramente separado.
+    const legalKeywords = ["legal", "juridic", "aprovacao_conteudo", "approval"];
+    expect(PRIVILEGED_OPERATIONS.length).toBeGreaterThan(0);
+    for (const operation of PRIVILEGED_OPERATIONS) {
+      const normalized = operation.toLowerCase();
+      for (const keyword of legalKeywords) {
+        expect(normalized.includes(keyword)).toBe(false);
+      }
+    }
   });
 });

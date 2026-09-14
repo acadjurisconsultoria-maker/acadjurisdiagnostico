@@ -1,12 +1,11 @@
 /**
  * Tipos do schema Supabase (Ciclo 0).
  *
- * Gerados manualmente a partir de supabase/migrations/*.sql, pois este
- * ambiente nao tem acesso a uma instancia Supabase em execucao para rodar
- * `supabase gen types typescript`. Quando um projeto Supabase real (local
- * ou remoto) estiver disponivel, regenerar com:
+ * Gerados manualmente a partir de supabase/migrations/*.sql, ate que o
+ * projeto Supabase de desenvolvimento esteja vinculado. Assim que estiver,
+ * regenerar com:
  *
- *   npx supabase gen types typescript --local > src/lib/supabase/database.types.ts
+ *   npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts
  *
  * e revisar o diff manualmente antes de commitar.
  *
@@ -299,6 +298,27 @@ export interface Database {
           new_value?: Record<string, unknown> | null;
           justification?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      legal_content_approval_grant: {
+        Row: {
+          user_id: string;
+          granted_by: string | null;
+          granted_at: string;
+          revoked_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          granted_by?: string | null;
+          granted_at?: string;
+          revoked_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          granted_by?: string | null;
+          granted_at?: string;
+          revoked_at?: string | null;
         };
         Relationships: [];
       };
