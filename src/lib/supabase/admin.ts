@@ -1,75 +1,152 @@
 import "server-only";
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { serverEnv } from "@/lib/env";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUserSession } from "@/lib/auth/session";
+import { recordAuditEvent } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
+import type { EffectivePerfis } from "@/lib/auth/perfis";
 
 /**
  * Cliente privilegiado de servidor -- IGNORA Row Level Security por
  * completo (usa a secret key do Supabase, que substitui a antiga
  * "service_role key" -- mesmo nivel de privilegio, nomenclatura atual).
  *
- * Uso extremamente restrito: apenas rotinas de servidor que precisam,
- * deliberadamente e por design, operar fora do RLS (ex.: job administrativo,
- * script de seed, revogacao de acesso em cascata). Qualquer rota/Server
- * Action que atenda diretamente a uma requisicao de usuario comum deve usar
- * `createSupabaseServerClient` (com RLS, src/lib/supabase/server.ts), nunca
- * este.
- *
- * O import "server-only" garante que o build falha se este arquivo for
- * importado por engano em um Client Component -- mas a disciplina de uso
- * correto (nao usar isto para responder requisicao comum de usuario)
- * depende tambem da barreira de autorizacao abaixo e de revisao de codigo.
+ * CORREÇÃO DE SEGURANÇA (rodada de revisão): a versão anterior deste
+ * módulo aceitava `actingPerfil` como parâmetro informado pelo chamador --
+ * isso NÃO é prova de autorização, pois qualquer código poderia alegar
+ * `super_admin` sem realmente sê-lo. Esta versão deriva o perfil
+ * exclusivamente da sessão autenticada (`auth.uid()` + consulta às tabelas
+ * de vínculo no banco), nunca de um parâmetro. Não existe mais nenhuma
+ * função exportada que construa o cliente privilegiado sem passar por essa
+ * checagem -- `buildRawAdminClient` abaixo não é exportado.
  */
 
 /** Perfis autorizados a acionar o cliente privilegiado (Matriz-de-Perfis-e-Permissoes-v1.md). */
-const ADMIN_CLIENT_ALLOWED_PERFIS = new Set(["super_admin", "admin_acadjuris"] as const);
-
-export interface AdminClientAuthorization {
-  /**
-   * Perfil do usuario autenticado em nome de quem a operacao privilegiada
-   * esta sendo executada -- nunca "porque o codigo pode", sempre "porque
-   * este perfil especifico tem competencia para esta operacao".
-   */
-  actingPerfil: "super_admin" | "admin_acadjuris";
-  /**
-   * Descricao curta e especifica da operacao que exige ignorar RLS (ex.:
-   * "revogar staff_project_access em cascata ao desativar projeto").
-   * Nunca genérica ("operacao administrativa") -- deve ser suficiente para
-   * uma revisao de codigo ou auditoria entender o motivo sem contexto
-   * adicional.
-   */
-  operation: string;
-}
+type PrivilegedPerfil = "super_admin" | "admin_acadjuris";
 
 /**
- * Cria o cliente privilegiado -- exige autorizacao explicita de perfil e
- * operacao (regra de produto: "antes de qualquer uso do cliente
- * privilegiado, deve existir autorizacao de aplicacao baseada no perfil e
- * na operacao solicitada"). Lanca erro em vez de permitir um uso silencioso
- * e não descrito.
+ * Lista fechada de operações privilegiadas. Adicionar uma operação aqui é
+ * uma decisão deliberada (revisão de código), nunca implícita.
  *
- * Isto NÃO substitui a checagem de perfil feita no banco (RLS continua
- * sendo a barreira real para todo o resto do sistema) -- é a barreira de
- * aplicação para este ponto específico, que por definição opera fora do
- * RLS.
+ * NUNCA adicione aqui uma operação de aprovação de conteúdo jurídico da
+ * metodologia -- essa competência exige o grant individual
+ * `pode_aprovar_conteudo_juridico` (Gestao-da-Metodologia-e-Versionamento-
+ * v2.md, seção 5.2), nunca decorre de `admin_acadjuris` ou `super_admin`.
+ * O guard `assertOperationIsNotLegalApproval` abaixo é a segunda camada de
+ * defesa contra isso, independente de revisão de código.
  */
-export function createSupabaseAdminClient(authorization: AdminClientAuthorization) {
-  if (!ADMIN_CLIENT_ALLOWED_PERFIS.has(authorization.actingPerfil)) {
-    throw new Error(
-      `Perfil "${authorization.actingPerfil}" não está autorizado a acionar o cliente privilegiado de servidor.`,
-    );
-  }
-  if (!authorization.operation || authorization.operation.trim().length === 0) {
-    throw new Error(
-      "Toda criação do cliente privilegiado exige a descrição da operação (para revisão/auditoria) -- nenhum uso silencioso é permitido.",
-    );
-  }
+const OPERATION_REQUIRED_PERFIS = {
+  revoke_access_cascade: ["super_admin", "admin_acadjuris"],
+  publish_methodology_version_technical: ["super_admin", "admin_acadjuris"],
+  manage_users_and_organizations: ["super_admin", "admin_acadjuris"],
+} as const satisfies Record<string, readonly PrivilegedPerfil[]>;
 
+export type PrivilegedOperation = keyof typeof OPERATION_REQUIRED_PERFIS;
+
+const LEGAL_APPROVAL_KEYWORDS = ["legal", "juridic", "aprovacao_conteudo", "approval_conteudo"];
+
+function assertOperationIsNotLegalApproval(operation: string) {
+  const normalized = operation.toLowerCase();
+  if (LEGAL_APPROVAL_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    throw new Error(
+      `Operação "${operation}" nunca pode ser autorizada via cliente administrativo -- ` +
+        "aprovação de conteúdo jurídico exige o grant individual pode_aprovar_conteudo_juridico, " +
+        "nunca decorre de admin_acadjuris ou super_admin.",
+    );
+  }
+}
+
+export interface AdminOperationContext {
+  /** Organização relevante para a operação, quando aplicável -- apenas para a trilha de auditoria, nunca usada para decidir autorização. */
+  organizationId?: string;
+}
+
+export class AdminAuthorizationError extends Error {}
+
+function buildRawAdminClient(): SupabaseClient<Database> {
   return createClient<Database>(serverEnv.SUPABASE_URL, serverEnv.SUPABASE_SECRET_KEY, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+}
+
+function findAllowedPerfil(
+  effective: EffectivePerfis,
+  allowed: readonly PrivilegedPerfil[],
+): PrivilegedPerfil | null {
+  for (const perfil of effective.perfis) {
+    if ((allowed as readonly string[]).includes(perfil)) {
+      return perfil as PrivilegedPerfil;
+    }
+  }
+  return null;
+}
+
+/**
+ * Único ponto de entrada para obter o cliente privilegiado de servidor.
+ *
+ * 1. Parte de uma sessão autenticada (`getCurrentUserSession`, que lê
+ *    `auth.uid()` da sessão via cookie -- nunca de um parâmetro).
+ * 2. Consulta o perfil e o vínculo organizacional no banco (mesmas tabelas
+ *    de vínculo usadas em toda a aplicação, via cliente com RLS).
+ * 3. Verifica se algum dos perfis efetivos do usuário está na lista de
+ *    perfis permitidos para a operação solicitada (lista fechada).
+ * 4. Rejeita a operação se não estiver na lista fechada, ou se "parecer"
+ *    uma aprovação de conteúdo jurídico (defesa em profundidade).
+ * 5. Registra em auditoria: usuário, operação, organização (se informada),
+ *    data (automática) e resultado -- tanto em caso de concessão quanto de
+ *    recusa.
+ *
+ * Não existe parâmetro de perfil. O perfil nunca é aceito vindo de tela,
+ * formulário, URL ou corpo de requisição -- é sempre derivado da sessão.
+ */
+export async function authorizeAdminOperation(
+  operation: PrivilegedOperation,
+  context: AdminOperationContext = {},
+): Promise<SupabaseClient<Database>> {
+  assertOperationIsNotLegalApproval(operation);
+
+  const allowedPerfis = OPERATION_REQUIRED_PERFIS[operation];
+  if (!allowedPerfis) {
+    throw new AdminAuthorizationError(
+      `Operação "${operation}" não está na lista fechada de operações privilegiadas.`,
+    );
+  }
+
+  const session = await getCurrentUserSession();
+  const actingPerfil = session ? findAllowedPerfil(session.effective, allowedPerfis) : null;
+  const authorized = session !== null && actingPerfil !== null;
+
+  // Auditoria via cliente com RLS (respeita a policy de INSERT de
+  // audit_event: actor_user_id precisa ser o proprio usuario autenticado).
+  // Se nao houver sessao, nao ha auth.uid() para satisfazer essa policy --
+  // nesse caso o evento de tentativa nao autenticada nao pode ser
+  // persistido pela via normal; ainda assim a operacao e recusada abaixo.
+  if (session) {
+    const supabaseForAudit = await createSupabaseServerClient();
+    await recordAuditEvent(supabaseForAudit, {
+      actorUserId: session.userId,
+      action: authorized ? "admin_operation_granted" : "admin_operation_denied",
+      entityTable: "admin_client",
+      justification:
+        `operation=${operation}` +
+        `; organizationId=${context.organizationId ?? "-"}` +
+        `; actingPerfil=${actingPerfil ?? "nenhum perfil elegível"}`,
+    });
+  }
+
+  if (!session) {
+    throw new AdminAuthorizationError("Operação privilegiada exige sessão autenticada.");
+  }
+  if (!authorized) {
+    throw new AdminAuthorizationError(
+      `Usuário não possui perfil autorizado para a operação "${operation}".`,
+    );
+  }
+
+  return buildRawAdminClient();
 }

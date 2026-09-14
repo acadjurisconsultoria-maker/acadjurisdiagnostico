@@ -13,7 +13,7 @@ import type { Database } from "@/lib/supabase/database.types";
  * identidade do usuario vem do cookie de sessao, e o acesso aos dados e
  * sempre mediado por RLS. Este cliente NUNCA ignora RLS; para operacoes
  * que exigem ignorar RLS deliberadamente (ex.: rotina administrativa
- * server-side), use `createSupabaseAdminClient` (src/lib/supabase/admin.ts)
+ * server-side), use `authorizeAdminOperation` (src/lib/supabase/admin.ts)
  * em vez deste.
  *
  * A URL vem da variavel de servidor (`SUPABASE_URL`), nao da variavel

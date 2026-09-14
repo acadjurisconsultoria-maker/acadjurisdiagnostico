@@ -23,7 +23,9 @@ export type AuditAction =
   | "permission_change"
   | "review"
   | "approval"
-  | "release";
+  | "release"
+  | "admin_operation_granted"
+  | "admin_operation_denied";
 
 export interface AuditEventInput {
   actorUserId: string | null;

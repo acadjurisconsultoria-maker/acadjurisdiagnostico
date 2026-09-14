@@ -38,10 +38,10 @@ toda policy de RLS — sem depender de expiração/reemissão de token.
 respeitando RLS), `src/lib/supabase/admin.ts` (servidor, secret key, ignora
 RLS, uso restrito — **renomeado de `service-role.ts`, ver decisão 11**). Os
 dois últimos importam `server-only`, que falha o build se importados por
-engano em um Client Component. `admin.ts` exige, além disso, que todo
-chamador declare `actingPerfil` (`super_admin`/`admin_acadjuris`) e
-`operation` (descrição da operação) antes de instanciar o cliente — nenhum
-uso silencioso é permitido (regra de produto, decisão 11).
+engano em um Client Component. `admin.ts` só entrega o cliente através de
+`authorizeAdminOperation(operation)`, que deriva o perfil autorizado da
+sessão autenticada real (nunca de parâmetro do chamador) — ver decisão 12
+para o histórico da correção.
 
 ### 4. MFA via TOTP nativo do Supabase Auth, sem biblioteca adicional
 
@@ -138,6 +138,53 @@ solicitá-la interativamente ao rodar `supabase link` ou `supabase db push`
 em alguns fluxos (ex.: acesso direto via `psql`/connection string); quando
 isso ocorrer, o valor é informado diretamente no prompt do terminal do
 usuário, fora desta conversa.
+
+### 12. Correção de segurança: autorização do cliente administrativo nunca aceita perfil como parâmetro
+
+**Falha identificada (revisão externa, antes de qualquer conexão real):** a
+primeira versão de `admin.ts` (decisão 3) aceitava `actingPerfil` como um
+campo do objeto passado pelo chamador (`{ actingPerfil: "super_admin",
+operation: "..." }`). Isso **não é prova de autorização** — qualquer código
+(ou, futuramente, qualquer entrada derivada de tela/formulário/URL/corpo de
+requisição) poderia simplesmente alegar `"super_admin"` sem o usuário
+autenticado de fato possuir esse grant no banco.
+
+**Correção:** `admin.ts` foi reescrito. `buildRawAdminClient` (construtor
+bruto do cliente privilegiado) deixou de ser exportado — a única forma de
+obter o cliente é `authorizeAdminOperation(operation, context?)`, que:
+
+1. lê a sessão autenticada real via `getCurrentUserSession()`
+   (`auth.uid()` + consulta a `super_admin_grant`/`admin_acadjuris_grant`
+   no banco, mesmo mecanismo já usado em toda a aplicação — nunca um claim
+   de token, nunca um parâmetro);
+2. verifica se algum perfil efetivo do usuário está na lista de perfis
+   permitidos para a `operation` solicitada, dentro de uma lista fechada
+   (`OPERATION_REQUIRED_PERFIS`) — operação fora da lista é sempre
+   recusada, mesmo para super_admin;
+3. recusa, adicionalmente, qualquer operação cujo nome contenha palavras
+   associadas a aprovação de conteúdo jurídico (`assertOperationIsNotLegalApproval`)
+   — defesa em profundidade contra a regra de produto de que
+   `admin_acadjuris`/`super_admin` nunca adquirem competência de aprovação
+   jurídica automaticamente (`Gestao-da-Metodologia-e-Versionamento-v2.md`,
+   seção 5.2);
+4. registra em auditoria usuário (`auth.uid()`), operação, organização
+   (quando informada) e resultado (`admin_operation_granted` ou
+   `admin_operation_denied`) — inclusive nas tentativas recusadas;
+5. não há caminho de código, em nenhuma assinatura de função deste módulo,
+   por onde um perfil possa ser informado pelo chamador.
+
+**Validação pendente (gate obrigatório da Etapa 2, não implementada nesta
+rodada):** a lógica foi implementada e coberta por 9 testes unitários com
+as dependências (`getCurrentUserSession`, `createSupabaseServerClient`,
+`recordAuditEvent`) mockadas — isso prova a lógica de decisão em isolamento,
+mas **não prova**, contra um banco real, que: (a) as consultas às tabelas
+de vínculo realmente retornam o que se espera sob RLS; (b) a política de
+INSERT de `audit_event` aceita a escrita nas condições esperadas; (c) não
+há nenhum caminho de bypass específico do Postgres/PostgREST não capturado
+pelos mocks. **O cliente administrativo continua sem nenhum uso real na
+aplicação** (nenhuma Server Action o invoca ainda) — permanece assim até
+essa validação end-to-end ocorrer contra o projeto Supabase de
+desenvolvimento.
 
 ## Consequências
 

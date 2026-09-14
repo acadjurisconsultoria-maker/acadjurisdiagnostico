@@ -92,7 +92,7 @@ src/
     supabase/
       client.ts                cliente para Client Components (navegador)
       server.ts                 cliente para Server Components/Actions (com RLS)
-      admin.ts                  cliente privilegiado de servidor (ignora RLS -- uso restrito, exige autorização de perfil+operação)
+      admin.ts                  cliente privilegiado de servidor (ignora RLS -- só via authorizeAdminOperation(), perfil sempre derivado da sessão real)
       database.types.ts         tipos do schema (regenerados a partir do projeto Supabase vinculado)
   proxy.ts                    renovação de sessão + proteção de rota (camada de UX; antigo "middleware", convenção Next.js 16)
 supabase/
@@ -110,8 +110,10 @@ docs/
 - RLS habilitado em toda tabela desde a primeira migration (nunca "adicionar depois").
 - 3 clientes Supabase distintos — o cliente privilegiado (`admin.ts`, secret
   key) nunca é importado por código que roda no navegador (`server-only`
-  faz o build falhar se isso acontecer) e exige perfil + operação
-  declarados antes de ser instanciado (nenhum uso silencioso).
+  faz o build falhar se isso acontecer) e só é obtido via
+  `authorizeAdminOperation(operation)`, que deriva o perfil autorizado da
+  sessão real (nunca de um parâmetro) e recusa qualquer operação fora de
+  uma lista fechada (nenhum uso silencioso, nenhum perfil falsificável).
 - Padrão atual de chaves do Supabase (publishable/secret) — não as chaves
   legadas (anon/service_role).
 - Nenhum segredo em código — apenas `process.env`, validado por `src/lib/env.ts`.
