@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],
+    setupFiles: ["tests/setup.ts"],
     // tests/integration/** exige uma instancia Supabase local em execucao
     // (`supabase start`, que por sua vez exige Docker) -- excluido da
     // execucao padrao. Ver tests/integration/README.md.

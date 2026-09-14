@@ -13,7 +13,7 @@ Ciclo 0 (reforço de "manter dependências mínimas e atualizadas").
 | `@supabase/supabase-js` | Cliente Supabase (Postgres/Auth/Storage) — stack obrigatória. |
 | `@supabase/ssr` | Adaptação do cliente Supabase para Server Components/Server Actions/Middleware do Next.js (cookies de sessão). |
 | `zod` | Validação das variáveis de ambiente em `src/lib/env.ts` — falha rápido e claro se um segredo/URL obrigatório estiver ausente ou malformado. |
-| `server-only` | Marca módulos que nunca podem ser importados por código do navegador (`src/lib/supabase/server.ts`, `service-role.ts`, `src/lib/audit.ts`) — o build falha se isso acontecer. |
+| `server-only` | Marca módulos que nunca podem ser importados por código do navegador (`src/lib/supabase/server.ts`, `admin.ts`, `src/lib/audit.ts`) — o build falha se isso acontecer. |
 
 ## Dependências de desenvolvimento
 

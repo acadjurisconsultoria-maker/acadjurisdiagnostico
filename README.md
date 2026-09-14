@@ -20,9 +20,8 @@ GraphQL, sem microsserviços, sem provedor de IA (decisão de produto).
 ## Pré-requisitos
 
 - Node.js 20+ e npm.
-- Docker (para rodar o Supabase localmente via `supabase start`). **Não
-  disponível no ambiente em que o Ciclo 0 foi escrito** — ver seção
-  "Pendências de configuração externa" abaixo.
+- Um projeto Supabase de **desenvolvimento** (nunca produção), criado no
+  painel Supabase — ver seção "Pendências de configuração externa" abaixo.
 - Supabase CLI (`npx supabase`, já resolvido via `npx` — não precisa
   instalar globalmente).
 
@@ -31,17 +30,20 @@ GraphQL, sem microsserviços, sem provedor de IA (decisão de produto).
 ```bash
 npm install
 cp .env.example .env.local
-# preencha .env.local com os valores impressos por `npx supabase start`
-# (URL e chave anônima do projeto LOCAL -- nunca um projeto remoto)
+# preencha .env.local com os valores do projeto Supabase de DESENVOLVIMENTO
+# (Project Settings → API no painel Supabase). Padrao atual de chaves
+# (publishable/secret) -- nao as chaves legadas (anon/service_role). Nunca
+# um projeto de producao.
 ```
 
-## Banco de dados local
+## Banco de dados
 
 ```bash
-npx supabase init        # primeira vez apenas -- gera supabase/config.toml
-npx supabase start       # sobe Postgres + Auth + Storage localmente (exige Docker)
-npx supabase db reset    # aplica supabase/migrations/*.sql
-node supabase/seed/seed-fictitious.mjs   # cria 2 organizações fictícias + 5 perfis de teste
+npx supabase login                          # autoriza o CLI (abre o navegador)
+npx supabase link --project-ref <ref>       # vincula ao projeto Supabase de desenvolvimento
+npx supabase db push                        # aplica supabase/migrations/*.sql
+node supabase/seed/seed-fictitious.mjs      # cria 2 organizações fictícias + 5 perfis de teste
+npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts
 ```
 
 ## Rodando a aplicação
@@ -90,9 +92,9 @@ src/
     supabase/
       client.ts                cliente para Client Components (navegador)
       server.ts                 cliente para Server Components/Actions (com RLS)
-      service-role.ts           cliente privilegiado (ignora RLS -- uso restrito)
-      database.types.ts         tipos do schema (gerados manualmente, ver arquivo)
-  middleware.ts               renovação de sessão + proteção de rota (camada de UX)
+      admin.ts                  cliente privilegiado de servidor (ignora RLS -- uso restrito, exige autorização de perfil+operação)
+      database.types.ts         tipos do schema (regenerados a partir do projeto Supabase vinculado)
+  proxy.ts                    renovação de sessão + proteção de rota (camada de UX; antigo "middleware", convenção Next.js 16)
 supabase/
   migrations/                 schema + RLS (SQL, aplicado em ordem)
   seed/                       dados fictícios para teste de segregação
@@ -106,9 +108,12 @@ docs/
 ## Segurança (resumo — detalhe completo nos ADRs e em `Docs/analise-tecnica/`)
 
 - RLS habilitado em toda tabela desde a primeira migration (nunca "adicionar depois").
-- 3 clientes Supabase distintos — o de `service_role` nunca é importado por
-  código que roda no navegador (`server-only` faz o build falhar se isso
-  acontecer).
+- 3 clientes Supabase distintos — o cliente privilegiado (`admin.ts`, secret
+  key) nunca é importado por código que roda no navegador (`server-only`
+  faz o build falhar se isso acontecer) e exige perfil + operação
+  declarados antes de ser instanciado (nenhum uso silencioso).
+- Padrão atual de chaves do Supabase (publishable/secret) — não as chaves
+  legadas (anon/service_role).
 - Nenhum segredo em código — apenas `process.env`, validado por `src/lib/env.ts`.
 - `.env.example` contém somente nomes de variáveis; `.env*` real está no
   `.gitignore`.
@@ -119,15 +124,14 @@ docs/
 
 ## Pendências de configuração externa (não bloqueiam o código, bloqueiam a execução)
 
-1. **Docker** — indisponível no ambiente em que este ciclo foi escrito;
-   necessário para `supabase start` (banco local) e, portanto, para rodar a
-   aplicação de ponta a ponta e os testes de integração.
-2. **Projeto Supabase remoto** (dev/preview/produção) — não criado nesta
-   rodada, por instrução expressa (nenhuma conta ou serviço externo é
-   provisionado sem autorização específica).
-3. **Repositório GitHub remoto** — não criado nesta rodada; o repositório
+1. **Projeto Supabase de desenvolvimento** — aguardando criação pela AcadJuris
+   no painel Supabase, e vinculação via `npx supabase login` / `link`
+   (nenhuma conta ou serviço externo é provisionado sem autorização
+   específica). Enquanto isso, o login real, o MFA real e os testes de
+   RLS reais não podem ser executados de ponta a ponta.
+2. **Repositório GitHub remoto** — não criado nesta rodada; o repositório
    Git é local (ver `git log`).
-4. **Provedor de verificação de arquivo malicioso** — não definido (`Politicas-RLS-e-Storage-Especificacao-v1.md`, seção 7) — relevante a partir do Ciclo 3.
+3. **Provedor de verificação de arquivo malicioso** — não definido (`Politicas-RLS-e-Storage-Especificacao-v1.md`, seção 7) — relevante a partir do Ciclo 3.
 
 ## Próximo ciclo
 

@@ -1,27 +1,26 @@
 # Testes de integração
 
-Os testes deste diretório exigem uma instância Supabase **local** em
-execução (Postgres real, com as migrations e as policies de RLS
-aplicadas) — não rodam contra mocks, porque o próprio objetivo é validar
-que o Postgres recusa acesso cruzado entre organizações.
+Os testes deste diretório exigem um projeto Supabase de **desenvolvimento**
+real (Postgres, com as migrations e as policies de RLS aplicadas) — não
+rodam contra mocks, porque o próprio objetivo é validar que o Postgres
+recusa acesso cruzado entre organizações.
 
 ## Pendência de configuração externa (Ciclo 0)
 
-**Este ambiente de desenvolvimento não tem Docker disponível**, e o
-Supabase CLI (`supabase start`) depende de Docker para subir Postgres +
-Auth + Storage localmente. Por isso, estes testes foram escritos e
-revisados, mas **não foram executados** nesta rodada — ver o relatório de
-entrega do Ciclo 0 para a confirmação explícita dessa lacuna.
+Estes testes foram escritos e revisados, mas **não foram executados**
+enquanto não houver um projeto Supabase de desenvolvimento vinculado — ver
+o relatório de entrega do Ciclo 0 para a confirmação explícita dessa
+lacuna, e `docs/adr/0001-fundacao-tecnica-ciclo-0.md` para o histórico.
 
-## Como executar (quando Docker estiver disponível)
+## Como executar (após o projeto de desenvolvimento estar configurado)
 
 ```bash
-# 1. Subir a instância local
-npx supabase init      # primeira vez apenas
-npx supabase start
+# 1. Vincular o Supabase CLI ao projeto de desenvolvimento
+npx supabase login
+npx supabase link --project-ref <ref>
 
 # 2. Aplicar as migrations
-npx supabase db reset
+npx supabase db push
 
 # 3. Popular com as duas organizações fictícias
 node supabase/seed/seed-fictitious.mjs
@@ -30,6 +29,7 @@ node supabase/seed/seed-fictitious.mjs
 npx vitest run tests/integration
 ```
 
-As variáveis `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-impressas por `supabase start` devem estar no `.env.local` (ambiente de
-desenvolvimento local, nunca um projeto remoto).
+As variáveis `NEXT_PUBLIC_SUPABASE_URL` e
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (painel Supabase → Project Settings
+→ API) devem estar em `.env.local` — padrão atual de chaves do Supabase,
+nunca as chaves legadas (anon/service_role). Nunca um projeto de produção.

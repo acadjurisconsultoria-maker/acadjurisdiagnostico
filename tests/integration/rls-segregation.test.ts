@@ -6,14 +6,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * MVP-v1.md, secao 1) -- criterio de saida do Ciclo 0.
  *
  * NAO RODA no `npm test` padrao (excluido em vitest.config.ts) porque exige
- * uma instancia Supabase local em execucao:
+ * um projeto Supabase de desenvolvimento real, vinculado e com as
+ * migrations aplicadas:
  *
- *   1. `supabase start`               (requer Docker -- indisponivel neste
- *                                       ambiente de desenvolvimento nesta
- *                                       rodada, ver README.md deste diretorio)
- *   2. `supabase db reset`            (aplica as migrations)
- *   3. `node supabase/seed/seed-fictitious.mjs`
- *   4. `npx vitest run tests/integration`
+ *   1. Projeto Supabase de desenvolvimento criado e `.env.local` preenchido
+ *   2. `npx supabase link --project-ref <ref>`
+ *   3. `npx supabase db push`          (aplica as migrations)
+ *   4. `node supabase/seed/seed-fictitious.mjs`
+ *   5. `npx vitest run tests/integration`
  *
  * Critério de aprovação: TODA tentativa de um usuário da Organização A de
  * ler/criar/alterar/excluir dado da Organização B retorna vazio ou erro de
@@ -21,14 +21,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  */
 
 const SUPABASE_URL = process.env["NEXT_PUBLIC_SUPABASE_URL"];
-const SUPABASE_ANON_KEY = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"];
+const SUPABASE_PUBLISHABLE_KEY = process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"];
 const SENHA_TESTE = "SenhaTeste!2026";
 
 async function signInAs(email: string): Promise<SupabaseClient> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error("Configure NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new Error(
+      "Configure NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
+    );
   }
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   const { error } = await client.auth.signInWithPassword({
     email,
     password: SENHA_TESTE,

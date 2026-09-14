@@ -33,11 +33,15 @@ toda policy de RLS — sem depender de expiração/reemissão de token.
 
 ### 3. Três clientes Supabase distintos, nunca um só
 
-`src/lib/supabase/client.ts` (navegador, chave anônima),
-`src/lib/supabase/server.ts` (servidor, chave anônima + cookie de sessão,
-respeitando RLS), `src/lib/supabase/service-role.ts` (servidor, ignora RLS,
-uso restrito). Os dois últimos importam `server-only`, que falha o build se
-importados por engano em um Client Component.
+`src/lib/supabase/client.ts` (navegador, publishable key),
+`src/lib/supabase/server.ts` (servidor, publishable key + cookie de sessão,
+respeitando RLS), `src/lib/supabase/admin.ts` (servidor, secret key, ignora
+RLS, uso restrito — **renomeado de `service-role.ts`, ver decisão 11**). Os
+dois últimos importam `server-only`, que falha o build se importados por
+engano em um Client Component. `admin.ts` exige, além disso, que todo
+chamador declare `actingPerfil` (`super_admin`/`admin_acadjuris`) e
+`operation` (descrição da operação) antes de instanciar o cliente — nenhum
+uso silencioso é permitido (regra de produto, decisão 11).
 
 ### 4. MFA via TOTP nativo do Supabase Auth, sem biblioteca adicional
 
@@ -102,14 +106,49 @@ declarado a ESLint 10.
 TypeScript, para não exigir um executor de TypeScript adicional como
 dependência apenas para um script standalone que roda fora do Next.js.
 
+### 11. Migração para o padrão atual de chaves do Supabase (publishable/secret) e `middleware.ts` → `proxy.ts`
+
+Rodada de correção sobre a implementação inicial do Ciclo 0, antes de
+qualquer conexão real ser estabelecida. Duas mudanças:
+
+**(a) Chaves.** O projeto Supabase a ser criado é novo — **decisão: usar
+exclusivamente o padrão atual de chaves (`publishable`/`secret`)**, nunca as
+chaves legadas (`anon`/`service_role`). Variáveis renomeadas:
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`;
+`SUPABASE_SERVICE_ROLE_KEY` → `SUPABASE_SECRET_KEY`; nova variável
+`SUPABASE_URL` (cópia da URL do projeto, mas em nome exclusivo de servidor,
+para que código de servidor nunca dependa do nome prefixado com
+`NEXT_PUBLIC_`, mesmo essa URL não sendo secreta). `src/lib/supabase/
+service-role.ts` foi renomeado para `admin.ts`, com a barreira de
+autorização descrita na decisão 3. Todas as referências (`env.ts`, os 3
+clientes Supabase, seed, testes, README) foram atualizadas; nenhuma
+referência ativa às variáveis legadas permanece no código (verificado por
+busca textual antes de considerar a migração concluída).
+
+**(b) `proxy.ts`.** Retroativo: `src/middleware.ts` já havia sido renomeado
+para `src/proxy.ts` na entrega anterior do Ciclo 0 (Next.js 16 depreciou a
+convenção `middleware.ts` em favor de `proxy.ts`, com a função exportada
+também renomeada de `middleware` para `proxy`) — registrado aqui por não
+ter sido documentado como decisão no momento em que ocorreu.
+
+**(c) Senha do banco.** A senha do banco Postgres do projeto Supabase (gerada
+na criação do projeto) é tratada como segredo — nunca solicitada nesta
+conversa, nunca registrada em arquivo versionado. O Supabase CLI pode
+solicitá-la interativamente ao rodar `supabase link` ou `supabase db push`
+em alguns fluxos (ex.: acesso direto via `psql`/connection string); quando
+isso ocorrer, o valor é informado diretamente no prompt do terminal do
+usuário, fora desta conversa.
+
 ## Consequências
 
 - Todo o código de autenticação/RLS está pronto para uso assim que houver
   uma instância Supabase (local ou remota) disponível — nenhuma refatoração
   estrutural esperada, apenas execução e ajuste fino.
 - `src/lib/supabase/database.types.ts` foi escrito manualmente a partir das
-  migrations (não gerado por `supabase gen types`, que exige instância em
-  execução) — deve ser regenerado e revisado quando o Supabase local
-  estiver disponível.
+  migrations (não gerado por `supabase gen types`, que exige um projeto
+  Supabase vinculado) — deve ser regenerado (`supabase gen types typescript
+  --linked`) e revisado assim que o projeto de desenvolvimento estiver
+  vinculado.
 - O critério de saída "login funcional para os 5 perfis" só pode ser
-  confirmado de fato após a pendência de Docker ser resolvida.
+  confirmado de fato após o projeto Supabase de desenvolvimento existir e
+  estar vinculado.

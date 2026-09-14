@@ -11,8 +11,9 @@
  * Uso:
  *   node supabase/seed/seed-fictitious.mjs
  *
- * Requer as variaveis de ambiente NEXT_PUBLIC_SUPABASE_URL e
- * SUPABASE_SERVICE_ROLE_KEY apontando para uma instancia Supabase LOCAL de
+ * Requer as variaveis de ambiente SUPABASE_URL e SUPABASE_SECRET_KEY
+ * (padrao atual de chaves do Supabase -- substitui a antiga
+ * "service_role key") apontando para uma instancia Supabase LOCAL de
  * desenvolvimento (ex.: `supabase start`). O script se recusa a rodar se
  * APP_ENV=production.
  */
@@ -25,17 +26,17 @@ if (APP_ENV === "production") {
   process.exit(1);
 }
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = process.env.SUPABASE_URL;
+const secretKey = process.env.SUPABASE_SECRET_KEY;
 
-if (!url || !serviceRoleKey) {
+if (!url || !secretKey) {
   console.error(
-    "Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (ambiente local) antes de rodar o seed.",
+    "Defina SUPABASE_URL e SUPABASE_SECRET_KEY (ambiente local) antes de rodar o seed.",
   );
   process.exit(1);
 }
 
-const supabase = createClient(url, serviceRoleKey, {
+const supabase = createClient(url, secretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
