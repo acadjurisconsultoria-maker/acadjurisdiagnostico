@@ -95,6 +95,6 @@ describe("Trilha de auditoria (audit_event) — RLS real", () => {
         entityTable: "project",
         newValue: { cpf: "000.000.000-00" },
       }),
-    ).rejects.toThrow(/sensível/);
+    ).rejects.toThrow(/sensivel/);
   });
 });
