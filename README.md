@@ -144,18 +144,19 @@ docs/
 
 ## Pendências de configuração externa (não bloqueiam o código, bloqueiam a execução)
 
-1. **`SUPABASE_SECRET_KEY` real** — o projeto Supabase de desenvolvimento
-   (`acadjuris-diagnostico-dev`) já existe e já está com as migrations
-   aplicadas, mas o conector Supabase (MCP) não tem acesso à secret key —
-   só o painel Supabase a exibe (Project Settings → API → secret keys).
-   Enquanto `app/.env.local` não tiver o valor real, o seed
-   (`seed-fictitious.mjs`) e toda a suíte `tests/integration/**` (login,
-   MFA, RLS, aprovação jurídica, auditoria, segregação A/B) não podem ser
-   executados de ponta a ponta — ver `docs/adr/0001-fundacao-tecnica-ciclo-0.md`,
-   decisão 14.
-2. **Repositório GitHub remoto** — não criado nesta rodada; o repositório
+1. **Repositório GitHub remoto** — não criado nesta rodada; o repositório
    Git é local (ver `git log`).
-3. **Provedor de verificação de arquivo malicioso** — não definido (`Politicas-RLS-e-Storage-Especificacao-v1.md`, seção 7) — relevante a partir do Ciclo 3.
+2. **Provedor de verificação de arquivo malicioso** — não definido (`Politicas-RLS-e-Storage-Especificacao-v1.md`, seção 7) — relevante a partir do Ciclo 3.
+3. **Recomendação opcional (não bloqueia o Ciclo 0):** o advisor de
+   segurança do Supabase sinaliza `auth_leaked_password_protection`
+   desligado (checagem de senha comprometida contra HaveIBeenPwned) — é
+   uma configuração do painel Auth (Authentication → Policies → Password
+   protection), fora do escopo de schema/RLS deste ciclo.
+
+`SUPABASE_SECRET_KEY` real já está configurada em `app/.env.local` — seed
+e testes de integração já rodaram com sucesso contra
+`acadjuris-diagnostico-dev` (ver `docs/adr/0001-fundacao-tecnica-ciclo-0.md`,
+decisão 15).
 
 ## Próximo ciclo
 

@@ -247,7 +247,7 @@ volume de dados real para justificar otimização agora, e a correção do
 tabela (fora do escopo desta correção pontual). Registrado como item a
 considerar em um ciclo futuro com carga real, não como pendência do Ciclo 0.
 
-### 14. Gate pendente: `SUPABASE_SECRET_KEY` ainda não substituída (bloqueia seed e testes de integração)
+### 14. Gate pendente: `SUPABASE_SECRET_KEY` ainda não substituída (bloqueia seed e testes de integração) — **resolvido, ver decisão 15**
 
 O conector Supabase (MCP) não possui, em nenhuma das ferramentas
 disponíveis nesta integração, um meio de retornar a secret key do projeto —
@@ -262,6 +262,62 @@ isso não ocorrer: `supabase/seed/seed-fictitious.mjs` e toda a suíte
 `tests/integration/**` permanecem implementados, mas não executados contra
 o projeto real — reportado explicitamente como pendência, não considerado
 concluído.
+
+### 15. Validação real completa: seed executado, 37/37 testes de integração passando contra o banco real
+
+Assim que o usuário confirmou ter colado a secret key real em
+`app/.env.local` (nunca compartilhada nesta conversa — a verificação de que
+o placeholder havia sido substituído foi feita por `grep -c` contando
+ocorrências do texto do placeholder, sem nunca ler ou exibir o valor
+real), executei, nessa ordem:
+
+1. `node --env-file=.env.local supabase/seed/seed-fictitious.mjs` — criou
+   Organização A e Organização B (cada uma com company/unit/project) e os 9
+   usuários fictícios de teste, com sucesso.
+2. `npm run test:integration` (37 testes, 3 arquivos) contra o projeto real
+   `acadjuris-diagnostico-dev`:
+   - `rls-segregation.test.ts` (23 testes): matriz completa de segregação
+     entre A e B (SELECT por listagem e por ID direto de organização/
+     empresa/unidade/projeto, UPDATE, DELETE, INSERT com tentativa de
+     falsificar `organization_id`), falsificação de auto-concessão de
+     `super_admin_grant`/`admin_acadjuris_grant`/`staff_project_access`/
+     `client_access`/`legal_content_approval_grant`, confirmação de que
+     `admin_acadjuris` **não** possui automaticamente linha em
+     `legal_content_approval_grant` (competência de aprovação jurídica não
+     é automática para perfil administrativo — requisito de produto) e de
+     que o usuário fictício `advogado.habilitado` **possui** essa
+     habilitação de forma independente.
+   - `auth-and-mfa.test.ts` (5 testes): login real com credencial válida e
+     recusa de credencial inválida/e-mail inexistente; fluxo completo de
+     MFA (`enroll` → `challenge` → `verify`) usando o TOTP gerado por
+     `src/lib/mfa/totp.ts` contra o Supabase Auth real, com o AAL subindo
+     para `aal2`; recusa de código TOTP incorreto.
+   - `audit-trail.test.ts` (5 testes): escrita de evento em nome próprio
+     aceita; escrita em nome de outro usuário recusada pela policy de RLS;
+     `UPDATE`/`DELETE` em evento já criado recusados (imutabilidade real,
+     não só ausência de rota no código); `recordAuditEvent` recusa registrar
+     um campo de nome sensível (`cpf`) mesmo contra o banco real.
+3. **Falha real encontrada e corrigida:** a asserção de
+   `audit-trail.test.ts` esperava a mensagem de erro com acento
+   (`/sensível/`), mas `src/lib/audit.ts` usa "sensivel" sem acento (código
+   sem acentuação, decisão de estilo do projeto) — a recusa em si
+   funcionava corretamente; só a expressão regular do teste não casava.
+   Corrigido para `/sensivel/`; suíte reexecutada por completo (não apenas
+   o teste corrigido) — 37/37 passando.
+4. `npm run check` (lint + typecheck + testes unitários + build) reexecutado
+   após a correção — todos os 4 passos verdes, 48/48 testes unitários.
+5. `get_advisors(type: "security")` reexecutado após o seed — 1 novo achado
+   WARN, `auth_leaked_password_protection` (checagem de senha comprometida
+   contra HaveIBeenPwned desligada). É uma configuração de projeto no
+   painel Auth do Supabase, não um problema de schema/RLS/código, e não
+   fazia parte do escopo de segurança definido para o Ciclo 0 — registrado
+   como recomendação opcional para o usuário habilitar diretamente no
+   painel (Authentication → Policies → Password protection), fora desta
+   correção.
+
+Com isso, os itens 6 a 13 da autorização de Etapa 2 foram efetivamente
+executados contra o banco real — nenhum foi apenas implementado e deixado
+sem execução.
 
 ## Consequências
 
