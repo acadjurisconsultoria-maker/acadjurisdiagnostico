@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, Json } from "@/lib/supabase/database.types";
 
 /**
  * Tipos de acao auditavel (Plano-de-Seguranca-e-LGPD-v4.md, secao 14):
@@ -38,8 +38,8 @@ export interface AuditEventInput {
    * qualquer dado pessoal -- apenas referencias e metadados estruturais.
    * Ver comentario da coluna no banco (0001_init_schema.sql).
    */
-  previousValue?: Record<string, unknown>;
-  newValue?: Record<string, unknown>;
+  previousValue?: Record<string, Json>;
+  newValue?: Record<string, Json>;
   justification?: string;
 }
 
@@ -54,7 +54,7 @@ const FORBIDDEN_KEYS = new Set([
   "arquivo",
 ]);
 
-function assertNoSensitiveKeys(value: Record<string, unknown> | undefined, label: string) {
+function assertNoSensitiveKeys(value: Record<string, Json> | undefined, label: string) {
   if (!value) return;
   for (const key of Object.keys(value)) {
     if (FORBIDDEN_KEYS.has(key.toLowerCase())) {

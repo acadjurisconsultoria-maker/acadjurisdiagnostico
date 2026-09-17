@@ -6,8 +6,14 @@ próximos ciclos (catálogo, questionário, análise, aprovação, controle de
 horas) serão construídos.
 
 **Este projeto ainda não foi implantado em lugar nenhum.** Não há
-repositório remoto, projeto Supabase ou projeto Vercel associados. Todas as
-instruções abaixo assumem um ambiente Supabase **local**.
+repositório remoto nem projeto Vercel associados. Existe um projeto
+Supabase de **desenvolvimento** real, `acadjuris-diagnostico-dev` (região
+`sa-east-1`), criado via conector Supabase (MCP) sob autorização específica
+— nunca um projeto de produção, nenhum dado real. As migrations `0001` a
+`0005` já foram aplicadas nele (ver `docs/adr/0001-fundacao-tecnica-ciclo-0.md`,
+decisão 13). Falta apenas: preencher `SUPABASE_SECRET_KEY` real em
+`app/.env.local` (o conector não tem acesso a esse valor — só o painel
+Supabase o exibe) para rodar o seed e os testes de integração (decisão 14).
 
 ---
 
@@ -20,29 +26,39 @@ GraphQL, sem microsserviços, sem provedor de IA (decisão de produto).
 ## Pré-requisitos
 
 - Node.js 20+ e npm.
-- Um projeto Supabase de **desenvolvimento** (nunca produção), criado no
-  painel Supabase — ver seção "Pendências de configuração externa" abaixo.
+- O projeto Supabase de **desenvolvimento** já existe (`acadjuris-diagnostico-dev`,
+  ver acima) e já tem as migrations `0001`–`0005` aplicadas. Falta apenas a
+  `SUPABASE_SECRET_KEY` real em `.env.local` — ver "Pendências de
+  configuração externa" abaixo.
 - Supabase CLI (`npx supabase`, já resolvido via `npx` — não precisa
-  instalar globalmente).
+  instalar globalmente) — necessário apenas para o seed local; migrations e
+  tipos já foram aplicados/gerados via conector nesta rodada.
 
 ## Instalação
 
 ```bash
 npm install
 cp .env.example .env.local
-# preencha .env.local com os valores do projeto Supabase de DESENVOLVIMENTO
-# (Project Settings → API no painel Supabase). Padrao atual de chaves
-# (publishable/secret) -- nao as chaves legadas (anon/service_role). Nunca
-# um projeto de producao.
+# NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY já estao
+# preenchidos com os valores reais de acadjuris-diagnostico-dev. Falta
+# apenas SUPABASE_SECRET_KEY (Project Settings -> API -> secret keys no
+# painel Supabase -- o conector MCP nao tem acesso a esse valor). Padrao
+# atual de chaves (publishable/secret) -- nao as chaves legadas
+# (anon/service_role). Nunca um projeto de producao.
 ```
 
 ## Banco de dados
+
+As migrations `0001` a `0005` já foram aplicadas em
+`acadjuris-diagnostico-dev` via conector Supabase (MCP) — não é necessário
+rodar `supabase db push` para o estado atual. Para reaplicar do zero em
+outro projeto, ou depois de criar uma nova migration:
 
 ```bash
 npx supabase login                          # autoriza o CLI (abre o navegador)
 npx supabase link --project-ref <ref>       # vincula ao projeto Supabase de desenvolvimento
 npx supabase db push                        # aplica supabase/migrations/*.sql
-node --env-file=.env.local supabase/seed/seed-fictitious.mjs   # cria 2 organizações fictícias + 9 usuários de teste
+node --env-file=.env.local supabase/seed/seed-fictitious.mjs   # cria 2 organizações fictícias + 9 usuários de teste (exige SUPABASE_SECRET_KEY real)
 npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts
 ```
 
@@ -128,11 +144,15 @@ docs/
 
 ## Pendências de configuração externa (não bloqueiam o código, bloqueiam a execução)
 
-1. **Projeto Supabase de desenvolvimento** — aguardando criação pela AcadJuris
-   no painel Supabase, e vinculação via `npx supabase login` / `link`
-   (nenhuma conta ou serviço externo é provisionado sem autorização
-   específica). Enquanto isso, o login real, o MFA real e os testes de
-   RLS reais não podem ser executados de ponta a ponta.
+1. **`SUPABASE_SECRET_KEY` real** — o projeto Supabase de desenvolvimento
+   (`acadjuris-diagnostico-dev`) já existe e já está com as migrations
+   aplicadas, mas o conector Supabase (MCP) não tem acesso à secret key —
+   só o painel Supabase a exibe (Project Settings → API → secret keys).
+   Enquanto `app/.env.local` não tiver o valor real, o seed
+   (`seed-fictitious.mjs`) e toda a suíte `tests/integration/**` (login,
+   MFA, RLS, aprovação jurídica, auditoria, segregação A/B) não podem ser
+   executados de ponta a ponta — ver `docs/adr/0001-fundacao-tecnica-ciclo-0.md`,
+   decisão 14.
 2. **Repositório GitHub remoto** — não criado nesta rodada; o repositório
    Git é local (ver `git log`).
 3. **Provedor de verificação de arquivo malicioso** — não definido (`Politicas-RLS-e-Storage-Especificacao-v1.md`, seção 7) — relevante a partir do Ciclo 3.

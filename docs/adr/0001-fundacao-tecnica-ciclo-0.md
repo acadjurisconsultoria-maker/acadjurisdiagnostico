@@ -186,6 +186,83 @@ aplicação** (nenhuma Server Action o invoca ainda) — permanece assim até
 essa validação end-to-end ocorrer contra o projeto Supabase de
 desenvolvimento.
 
+### 13. Conexão real ao projeto Supabase de desenvolvimento e correção de exposição pública das funções auxiliares de RLS
+
+Autorização específica do usuário para usar exclusivamente o conector
+Supabase (MCP) para criar e conectar o projeto de desenvolvimento. Antes de
+criar qualquer recurso, foram verificadas e reportadas ao usuário: a única
+organização Supabase existente e o único projeto pré-existente (não
+alterado). Confirmado R$ 0/mês (`get_cost`/`confirm_cost`) antes da criação.
+
+**Projeto criado:** `acadjuris-diagnostico-dev` (região `sa-east-1`, a mais
+próxima de São Paulo disponível). As migrations `0001_init_schema.sql` a
+`0004_legal_content_approval_grant.sql` (já existentes, não reescritas)
+foram aplicadas em ordem via `apply_migration`, todas com sucesso.
+
+**Achado real do advisor de segurança do Supabase** (`get_advisors(type:
+"security")`, executado após aplicar 0001–0004): 26 ocorrências WARN
+(`anon_security_definer_function_executable` /
+`authenticated_security_definer_function_executable`) — as 13 funções
+auxiliares `SECURITY DEFINER` usadas dentro das policies de RLS (decisões 2
+e 12) estavam no schema `public`, o único exposto pela API REST, e portanto
+chamáveis diretamente via `/rest/v1/rpc/<funcao>` por qualquer usuário
+anônimo ou autenticado. Não era uma falha de RLS em si (as funções só
+retornam booleano referente ao próprio `auth.uid()` do chamador, nunca
+expõem dado de outra organização), mas não deveriam ser endpoints públicos.
+
+**Correção:** `0005_private_schema_for_rls_helpers.sql` — move as 13
+funções para um novo schema `internal` (não exposto pela API REST) via
+`ALTER FUNCTION ... SET SCHEMA`, que preserva o OID da função; como as
+policies de RLS existentes referenciam a função pelo OID compilado, não
+pelo nome textual, nenhuma policy precisou ser recriada. Funções que chamam
+outras funções auxiliares por nome não qualificado (`is_privileged_staff`,
+`has_staff_access_to_*`) tiveram `search_path` ajustado para
+`internal, public`. Migration aplicada; `get_advisors(type: "security")`
+reexecutado em seguida retornou zero ocorrências — evidência antes/depois
+concreta da correção, não apenas alegação.
+
+**Tipos regenerados do banco real** (`generate_typescript_types` /
+`npx supabase gen types typescript --linked`): `src/lib/supabase/
+database.types.ts` deixou de ser escrito manualmente (decisão anterior) e
+passou a ser gerado diretamente do projeto `acadjuris-diagnostico-dev`. A
+comparação confirmou que o schema manual estava correto (mesmas tabelas,
+colunas e relacionamentos); a única mudança de tipo foi `previous_value`/
+`new_value` de `audit_event`, que o gerador tipa como `Json` (tipo recursivo
+`string | number | boolean | null | {…} | Json[]`) em vez do
+`Record<string, unknown>` usado manualmente — `src/lib/audit.ts` foi
+ajustado para `Record<string, Json>` nos parâmetros de entrada. O gerador
+não lista nenhuma função em `Functions` (schema `public`), o que confirma
+independentemente que o schema `internal` está de fato inacessível pela API
+REST — não apenas por convenção de nomenclatura.
+
+**Achados de performance** (`get_advisors(type: "performance")`, mesmo
+projeto): 8 chaves estrangeiras sem índice de cobertura (INFO), 10 policies
+de RLS reavaliando `auth.uid()`/`current_setting()` por linha em vez de uma
+vez por consulta (WARN — corrigível trocando `auth.uid()` por
+`(select auth.uid())` dentro das policies), 9 índices ainda não usados
+(INFO, esperado em projeto sem tráfego real). **Decisão: não corrigir nesta
+rodada** — são achados de performance, não de segurança, o projeto não tem
+volume de dados real para justificar otimização agora, e a correção do
+`auth_rls_initplan` implica reescrever `CREATE POLICY` de praticamente toda
+tabela (fora do escopo desta correção pontual). Registrado como item a
+considerar em um ciclo futuro com carga real, não como pendência do Ciclo 0.
+
+### 14. Gate pendente: `SUPABASE_SECRET_KEY` ainda não substituída (bloqueia seed e testes de integração)
+
+O conector Supabase (MCP) não possui, em nenhuma das ferramentas
+disponíveis nesta integração, um meio de retornar a secret key do projeto —
+confirmado por busca ampla nas ferramentas do conector, não apenas
+suposição. `.env.local` continua com `SUPABASE_SECRET_KEY=placeholder-
+secret-key-build-only` (valor de build, não real). Como o usuário
+determinou explicitamente que nenhuma credencial deve ser solicitada ou
+colada nesta conversa, **este é um gate que só o usuário pode destravar**,
+copiando o valor real de "Project Settings → API → secret keys" no painel
+Supabase diretamente para `app/.env.local` (nunca nesta conversa). Enquanto
+isso não ocorrer: `supabase/seed/seed-fictitious.mjs` e toda a suíte
+`tests/integration/**` permanecem implementados, mas não executados contra
+o projeto real — reportado explicitamente como pendência, não considerado
+concluído.
+
 ## Consequências
 
 - Todo o código de autenticação/RLS está pronto para uso assim que houver

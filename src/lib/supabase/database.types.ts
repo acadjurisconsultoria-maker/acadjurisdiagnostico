@@ -1,329 +1,449 @@
 /**
  * Tipos do schema Supabase (Ciclo 0).
  *
- * Gerados manualmente a partir de supabase/migrations/*.sql, ate que o
- * projeto Supabase de desenvolvimento esteja vinculado. Assim que estiver,
- * regenerar com:
+ * Gerados diretamente do projeto Supabase de desenvolvimento real
+ * (`acadjuris-diagnostico-dev`, apos aplicar supabase/migrations/0001..0005)
+ * via `generate_typescript_types` (MCP) / `npx supabase gen types typescript
+ * --linked`. Nao editar manualmente -- regenerar e revisar o diff antes de
+ * commitar.
  *
- *   npx supabase gen types typescript --linked > src/lib/supabase/database.types.ts
- *
- * e revisar o diff manualmente antes de commitar.
- *
- * Formato: cada tabela precisa de Row/Insert/Update/Relationships (mesmo
- * que Relationships seja um array vazio) para casar com o tipo genérico
- * `GenericTable` esperado por @supabase/postgrest-js — sem isso, o
- * TypeScript infere `never` silenciosamente em vez de dar erro claro.
+ * As funcoes auxiliares de RLS (SECURITY DEFINER) vivem no schema `internal`
+ * (migration 0005), que nao e exposto pela API REST -- por isso nao aparecem
+ * aqui como `Functions`; isso confirma que o schema `internal` esta
+ * realmente inacessivel via PostgREST, nao apenas por convencao.
  */
 
-export type PerfilInterno =
-  | "admin_acadjuris"
-  | "consultor_responsavel"
-  | "analista_auditor";
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
-export interface Database {
+export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "14.5";
+  };
   public: {
     Tables: {
-      app_user: {
-        Row: {
-          id: string;
-          full_name: string;
-          created_at: string;
-        };
-        Insert: {
-          id: string;
-          full_name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          full_name?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      organization: {
-        Row: {
-          id: string;
-          name: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      company: {
-        Row: {
-          id: string;
-          organization_id: string;
-          name: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          organization_id: string;
-          name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          organization_id?: string;
-          name?: string;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "company_organization_id_fkey";
-            columns: ["organization_id"];
-            referencedRelation: "organization";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      unit: {
-        Row: {
-          id: string;
-          company_id: string;
-          name: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          company_id: string;
-          name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          company_id?: string;
-          name?: string;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "unit_company_id_fkey";
-            columns: ["company_id"];
-            referencedRelation: "company";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      project: {
-        Row: {
-          id: string;
-          unit_id: string;
-          name: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          unit_id: string;
-          name: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          unit_id?: string;
-          name?: string;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "project_unit_id_fkey";
-            columns: ["unit_id"];
-            referencedRelation: "unit";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      super_admin_grant: {
-        Row: {
-          user_id: string;
-          granted_by: string | null;
-          granted_at: string;
-          revoked_at: string | null;
-        };
-        Insert: {
-          user_id: string;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
-        };
-        Update: {
-          user_id?: string;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
-        };
-        Relationships: [];
-      };
       admin_acadjuris_grant: {
         Row: {
-          user_id: string;
-          granted_by: string | null;
           granted_at: string;
+          granted_by: string | null;
           revoked_at: string | null;
+          user_id: string;
         };
         Insert: {
-          user_id: string;
-          granted_by?: string | null;
           granted_at?: string;
+          granted_by?: string | null;
           revoked_at?: string | null;
+          user_id: string;
         };
         Update: {
+          granted_at?: string;
+          granted_by?: string | null;
+          revoked_at?: string | null;
           user_id?: string;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
-        };
-        Relationships: [];
-      };
-      staff_project_access: {
-        Row: {
-          id: string;
-          user_id: string;
-          project_id: string;
-          perfil: PerfilInterno;
-          granted_by: string | null;
-          granted_at: string;
-          revoked_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          project_id: string;
-          perfil: PerfilInterno;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          project_id?: string;
-          perfil?: PerfilInterno;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: "staff_project_access_project_id_fkey";
-            columns: ["project_id"];
-            referencedRelation: "project";
+            foreignKeyName: "admin_acadjuris_grant_granted_by_fkey";
+            columns: ["granted_by"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "admin_acadjuris_grant_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      app_user: {
+        Row: {
+          created_at: string;
+          full_name: string;
+          id: string;
+        };
+        Insert: {
+          created_at?: string;
+          full_name: string;
+          id: string;
+        };
+        Update: {
+          created_at?: string;
+          full_name?: string;
+          id?: string;
+        };
+        Relationships: [];
+      };
+      audit_event: {
+        Row: {
+          action: string;
+          actor_user_id: string | null;
+          created_at: string;
+          entity_id: string | null;
+          entity_table: string;
+          id: string;
+          justification: string | null;
+          new_value: Json | null;
+          previous_value: Json | null;
+        };
+        Insert: {
+          action: string;
+          actor_user_id?: string | null;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_table: string;
+          id?: string;
+          justification?: string | null;
+          new_value?: Json | null;
+          previous_value?: Json | null;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string | null;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_table?: string;
+          id?: string;
+          justification?: string | null;
+          new_value?: Json | null;
+          previous_value?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_event_actor_user_id_fkey";
+            columns: ["actor_user_id"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
             referencedColumns: ["id"];
           },
         ];
       };
       client_access: {
         Row: {
-          id: string;
-          user_id: string;
-          organization_id: string;
           company_id: string | null;
-          unit_id: string | null;
-          project_id: string | null;
-          granted_by: string | null;
           granted_at: string;
+          granted_by: string | null;
+          id: string;
+          organization_id: string;
+          project_id: string | null;
           revoked_at: string | null;
+          unit_id: string | null;
+          user_id: string;
         };
         Insert: {
-          id?: string;
-          user_id: string;
-          organization_id: string;
           company_id?: string | null;
-          unit_id?: string | null;
-          project_id?: string | null;
-          granted_by?: string | null;
           granted_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          organization_id: string;
+          project_id?: string | null;
           revoked_at?: string | null;
+          unit_id?: string | null;
+          user_id: string;
         };
         Update: {
-          id?: string;
-          user_id?: string;
-          organization_id?: string;
           company_id?: string | null;
-          unit_id?: string | null;
-          project_id?: string | null;
-          granted_by?: string | null;
           granted_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          organization_id?: string;
+          project_id?: string | null;
           revoked_at?: string | null;
+          unit_id?: string | null;
+          user_id?: string;
         };
         Relationships: [
           {
+            foreignKeyName: "client_access_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "company";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_access_granted_by_fkey";
+            columns: ["granted_by"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "client_access_organization_id_fkey";
             columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organization";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_access_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "project";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_access_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "unit";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_access_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      company: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          organization_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
             referencedRelation: "organization";
             referencedColumns: ["id"];
           },
         ];
       };
-      audit_event: {
+      legal_content_approval_grant: {
         Row: {
-          id: string;
-          actor_user_id: string | null;
-          action: string;
-          entity_table: string;
-          entity_id: string | null;
-          previous_value: Record<string, unknown> | null;
-          new_value: Record<string, unknown> | null;
-          justification: string | null;
-          created_at: string;
+          granted_at: string;
+          granted_by: string | null;
+          revoked_at: string | null;
+          user_id: string;
         };
         Insert: {
-          id?: string;
-          actor_user_id?: string | null;
-          action: string;
-          entity_table: string;
-          entity_id?: string | null;
-          previous_value?: Record<string, unknown> | null;
-          new_value?: Record<string, unknown> | null;
-          justification?: string | null;
-          created_at?: string;
+          granted_at?: string;
+          granted_by?: string | null;
+          revoked_at?: string | null;
+          user_id: string;
         };
         Update: {
-          id?: string;
-          actor_user_id?: string | null;
-          action?: string;
-          entity_table?: string;
-          entity_id?: string | null;
-          previous_value?: Record<string, unknown> | null;
-          new_value?: Record<string, unknown> | null;
-          justification?: string | null;
+          granted_at?: string;
+          granted_by?: string | null;
+          revoked_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "legal_content_approval_grant_granted_by_fkey";
+            columns: ["granted_by"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "legal_content_approval_grant_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      organization: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+        };
+        Insert: {
           created_at?: string;
+          id?: string;
+          name: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
         };
         Relationships: [];
       };
-      legal_content_approval_grant: {
+      project: {
         Row: {
-          user_id: string;
-          granted_by: string | null;
-          granted_at: string;
-          revoked_at: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          unit_id: string;
         };
         Insert: {
-          user_id: string;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
+          created_at?: string;
+          id?: string;
+          name: string;
+          unit_id: string;
         };
         Update: {
-          user_id?: string;
-          granted_by?: string | null;
-          granted_at?: string;
-          revoked_at?: string | null;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          unit_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "project_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "unit";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      staff_project_access: {
+        Row: {
+          granted_at: string;
+          granted_by: string | null;
+          id: string;
+          perfil: Database["public"]["Enums"]["perfil_interno"];
+          project_id: string;
+          revoked_at: string | null;
+          user_id: string;
+        };
+        Insert: {
+          granted_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          perfil: Database["public"]["Enums"]["perfil_interno"];
+          project_id: string;
+          revoked_at?: string | null;
+          user_id: string;
+        };
+        Update: {
+          granted_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          perfil?: Database["public"]["Enums"]["perfil_interno"];
+          project_id?: string;
+          revoked_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "staff_project_access_granted_by_fkey";
+            columns: ["granted_by"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "staff_project_access_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "project";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "staff_project_access_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      super_admin_grant: {
+        Row: {
+          granted_at: string;
+          granted_by: string | null;
+          revoked_at: string | null;
+          user_id: string;
+        };
+        Insert: {
+          granted_at?: string;
+          granted_by?: string | null;
+          revoked_at?: string | null;
+          user_id: string;
+        };
+        Update: {
+          granted_at?: string;
+          granted_by?: string | null;
+          revoked_at?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "super_admin_grant_granted_by_fkey";
+            columns: ["granted_by"];
+            isOneToOne: false;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "super_admin_grant_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "app_user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      unit: {
+        Row: {
+          company_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+        };
+        Insert: {
+          company_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+        };
+        Update: {
+          company_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "unit_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "company";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
+    Enums: {
+      perfil_interno:
+        | "admin_acadjuris"
+        | "consultor_responsavel"
+        | "analista_auditor";
+    };
+    CompositeTypes: Record<string, never>;
   };
-}
+};
+
+export type PerfilInterno = Database["public"]["Enums"]["perfil_interno"];
