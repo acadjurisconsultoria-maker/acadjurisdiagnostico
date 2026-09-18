@@ -5,8 +5,11 @@ autenticação, segregação multiempresa e o esqueleto de dados sobre o qual os
 próximos ciclos (catálogo, questionário, análise, aprovação, controle de
 horas) serão construídos.
 
-**Este projeto ainda não foi implantado em lugar nenhum.** Não há
-repositório remoto nem projeto Vercel associados. Existe um projeto
+**Este projeto ainda não foi implantado em lugar nenhum** (nenhum deploy,
+nenhum ambiente público). Há um repositório remoto no GitHub,
+[`acadjurisconsultoria-maker/acadjurisdiagnostico`](https://github.com/acadjurisconsultoria-maker/acadjurisdiagnostico)
+(privado, criado pela AcadJuris; sem integração de deploy/CI configurada
+ainda) — nenhum projeto Vercel associado. Existe um projeto
 Supabase de **desenvolvimento** real, `acadjuris-diagnostico-dev` (região
 `sa-east-1`), criado via conector Supabase (MCP) sob autorização específica
 — nunca um projeto de produção, nenhum dado real. As migrations `0001` a
@@ -144,8 +147,7 @@ docs/
 
 ## Pendências de configuração externa (não bloqueiam o código, bloqueiam a execução)
 
-1. **Repositório GitHub remoto** — não criado nesta rodada; o repositório
-   Git é local (ver `git log`).
+1. **Projeto Vercel** — ainda não criado; sem deploy em nenhum ambiente.
 2. **Provedor de verificação de arquivo malicioso** — não definido (`Politicas-RLS-e-Storage-Especificacao-v1.md`, seção 7) — relevante a partir do Ciclo 3.
 3. **Recomendação opcional (não bloqueia o Ciclo 0):** o advisor de
    segurança do Supabase sinaliza `auth_leaked_password_protection`
